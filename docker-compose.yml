@@ -1,0 +1,77 @@
+services:
+  zookeeper:
+    container_name: zookeeper
+    image: confluentinc/cp-zookeeper:7.4.0
+    hostname: zookeeper
+    ports:
+      - "${ZOOKEEPER_PORT}:2181"
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    healthcheck:
+      test: ["CMD", "bash", "-c", "echo 'ruok' | nc localhost 2181"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+  broker:
+    container_name: broker
+    image: confluentinc/cp-kafka:7.4.0
+    hostname: broker
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+    ports:
+      - "${KAFKA_PORT_1}:9092"
+      - "${KAFKA_PORT_2}:9101"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: "zookeeper:2181"
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://broker:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_CONFLUENT_LICENSE_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_CONFLUENT_BALANCER_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_JMX_PORT: ${JMX_PORT}
+    healthcheck:
+      test: ["CMD", "bash", "-c", "echo 'ruok' | nc -z localhost 9092"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  postgres:
+    container_name: postgres
+    image: postgres:latest
+    ports:
+      - "${POSTGRES_PORT}:5432"
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "${POSTGRES_USER}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  spark-master:
+    container_name: spark-master
+    image: bitnami/spark:latest
+    command: bin/spark-class org.apache.spark.deploy.master.Master
+    ports:
+      - "${SPARK_MASTER_PORT}:8080"
+      - "${SPARK_MASTER_WEBUI_PORT}:7077"
+
+  spark-worker:
+    container_name: spark-worker
+    image: bitnami/spark:latest
+    command: bin/spark-class org.apache.spark.deploy.worker.Worker spark://spark-master:7077
+    depends_on:
+      - spark-master
+    environment:
+      SPARK_MODE: "worker"
+      SPARK_WORKER_CORES: 2
+      SPARK_WORKER_MEMORY: 1g
+      SPARK_MASTER_URL: "spark://spark-master:7077"
