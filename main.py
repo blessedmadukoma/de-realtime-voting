@@ -58,10 +58,9 @@ def create_tables(conn, cur):
         CREATE TABLE IF NOT EXISTS votes (
             voter_id VARCHAR(255) UNIQUE,
             candidate_id VARCHAR(255) UNIQUE,
+            voting_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             vote int DEFAULT 1,
-            primary key (voter_id, candidate_id),
-            FOREIGN KEY (voter_id) REFERENCES voters(voter_id),
-            FOREIGN KEY (candidate_id) REFERENCES candidates(candidate_id)
+            primary key (voter_id, candidate_id)
         )
         """
     )
