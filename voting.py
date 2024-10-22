@@ -7,6 +7,7 @@ import logging
 import requests
 from confluent_kafka import Consumer, KafkaException, KafkaError, SerializingProducer
 from datetime import datetime
+import time
 from main import delivery_report
 
 load_dotenv()
@@ -32,14 +33,13 @@ if __name__ == "__main__":
 
     try:
         conn = psycopg2.connect(DATABASE_URL)
-
         cur = conn.cursor()
 
         candidates_query = cur.execute(
             """
-            SELECT 
-                row_to_json(col) 
-            FROM 
+            SELECT
+                row_to_json(col)
+            FROM
             (
                 SELECT * FROM candidates
             ) col;
@@ -51,31 +51,38 @@ if __name__ == "__main__":
         if len(candidates) == 0:
             raise Exception("No candidates found")
 
-        # subscribe to voters topic to get voter data
+        # Subscribe to voters topic to get voter data
         consumer.subscribe(["voters_topic"])
 
         while True:
+
+            # check the total vote counts if it is 1000
+            cur.execute("SELECT COUNT(*) FROM votes")
+            votes_count = cur.fetchone()
+
+            if votes_count[0] >= 1000:
+                print("1000 votes have been casted")
+                logging.info("1000 votes have been casted")
+                break
+
             try:
-                # poll for new messages
+                # Poll for new messages
                 message = consumer.poll(timeout=1.0)
 
-                # check if message is None
                 if message is None:
                     continue
 
-                # check if message has an error
                 if message.error():
                     if message.error().code() == KafkaError._PARTITION_EOF:
                         logging.warning('%% %s [%d] reached end at offset %d\n' %
                                         (message.topic(), message.partition(), message.offset()))
-
                         continue
-                    elif message.error():
+                    else:
                         raise KafkaException(message.error())
                 else:
                     voter = json.loads(message.value().decode("utf-8"))
 
-                    # get a random candidate
+                    # Get a random candidate
                     chosen_candidate = random.choice(candidates)
 
                     vote = voter | chosen_candidate | {
@@ -86,30 +93,37 @@ if __name__ == "__main__":
                     print(
                         f'User {voter["voter_id"]} voted for {chosen_candidate["candidate_name"]}')
 
-                    # insert vote
-                    cur.execute(
-                        """
-                        INSERT INTO votes (voter_id, candidate_id, vote_time)
-                        VALUES (%s, %s, %s)
-                        """,
-                        (vote["voter_id"], vote["candidate_id"],
-                         vote["voting_time"])
-                    )
+                    try:
+                        # Insert vote into database
+                        cur.execute(
+                            """
+                            INSERT INTO votes (voter_id, candidate_id, voting_time)
+                            VALUES (%s, %s, %s)
+                            """,
+                            (vote["voter_id"], vote["candidate_id"],
+                             vote["voting_time"])
+                        )
+                        conn.commit()
 
-                    conn.commit()
+                        # Send vote data to Kafka
+                        producer.produce(
+                            topic="voters_topic",
+                            key=vote["voter_id"],
+                            value=json.dumps(vote),
+                            on_delivery=delivery_report
+                        )
+                        producer.poll(0)
 
-                    # send vote data to kafka
-                    producer.produce(
-                        topic="votes_topic",
-                        key=vote["voter_id"],
-                        value=json.dumps(vote),
-                        on_delivery=delivery_report
-                    )
+                        logging.info(
+                            f'User {voter["voter_id"]} voted for {chosen_candidate["candidate_name"]}')
 
-                    producer.poll(0)
+                    except psycopg2.Error as db_err:
+                        logging.error(f"Database error: {db_err}")
+                        conn.rollback()  # Roll back the current transaction to recover from the error
+                    except Exception as e:
+                        logging.error(f"Error processing vote: {e}")
 
-                    logging.info(
-                        f'User {voter["voter_id"]} voted for {chosen_candidate["candidate_name"]}')
+                time.sleep(0.5)
 
             except Exception as e:
                 logging.error(f"Error processing message: {e}")
