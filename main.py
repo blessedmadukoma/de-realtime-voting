@@ -1,17 +1,10 @@
 import json
 import random
-import psycopg2
-from dotenv import load_dotenv
-import os
 import logging
 import requests
 from confluent_kafka import SerializingProducer
+from env import DATABASE_URL, BASE_URL, connect_db
 
-load_dotenv()
-
-
-DATABASE_URL = os.getenv("DATABASE_URL")
-BASE_URL = os.getenv("BASE_URL")
 PARTIES = ["Management Party", "Savior Party", "Tech Republic Party"]
 
 random.seed(21)
@@ -146,7 +139,7 @@ if __name__ == "__main__":
     })
 
     try:
-        conn = psycopg2.connect(DATABASE_URL)
+        conn = connect_db()
 
         cur = conn.cursor()
 

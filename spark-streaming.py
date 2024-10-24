@@ -1,13 +1,9 @@
-import pyspark
+# import pyspark
 from pyspark.sql import SparkSession
 from pyspark.sql.types import StructType, StructField, IntegerType, TimestampType, StringType
 from pyspark.sql.functions import from_json, col
 from pyspark.sql.functions import sum as _sum
-import os
-
-POSTGRES_JDBC_LOCATION = os.getenv("POSTGRES_JDBC_LOCATION")
-CHECKPOINT_LOCATION_1 = os.getenv("CHECKPOINT_LOCATION_1")
-CHECKPOINT_LOCATION_2 = os.getenv("CHECKPOINT_LOCATION_2")
+from env import POSTGRES_JDBC_LOCATION, CHECKPOINT_LOCATION_1, CHECKPOINT_LOCATION_2
 
 if __name__ == "__main__":
     # print(pyspark.__version__)
