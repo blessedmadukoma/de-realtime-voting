@@ -3,7 +3,7 @@ import random
 import logging
 import requests
 from confluent_kafka import SerializingProducer
-from env import DATABASE_URL, BASE_URL, connect_db
+from env import BASE_URL, connect_db
 
 PARTIES = ["Management Party", "Savior Party", "Tech Republic Party"]
 
@@ -150,7 +150,6 @@ if __name__ == "__main__":
         cur.execute("SELECT * FROM candidates")
 
         candidates = cur.fetchall()
-        print(f"Candidates before insert: {candidates}")
 
         if len(candidates) == 0:
             for i in range(3):
@@ -168,9 +167,6 @@ if __name__ == "__main__":
                 )
 
             conn.commit()
-
-            candidates = cur.fetchall()
-            print(f"Candidates after insert: {candidates}")
 
         cur.execute("SELECT COUNT(*) FROM voters")
         voters_count = cur.fetchone()
