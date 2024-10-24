@@ -50,7 +50,7 @@ def create_tables(conn, cur):
         """
         CREATE TABLE IF NOT EXISTS votes (
             voter_id VARCHAR(255) UNIQUE,
-            candidate_id VARCHAR(255) UNIQUE,
+            candidate_id VARCHAR(255),
             voting_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             vote int DEFAULT 1,
             primary key (voter_id, candidate_id)
